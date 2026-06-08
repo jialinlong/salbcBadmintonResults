@@ -65,7 +65,13 @@ Page({
     // 新增：黄金搭档
     goldenPartner: null,
     singleDayMax: 0,
-    
+
+    // 新增：近期状态条 / 关键局能力 / 月度趋势
+    recentForm: [],
+    formStatus: '',
+    clutch: null,
+    monthlyTrend: [],
+
     isLoading: true,
     
     // 分享卡片

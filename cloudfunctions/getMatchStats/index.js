@@ -35,6 +35,48 @@ async function getAllMatches(condition = {}) {
 }
 
 /**
+ * 构造玩家筛选条件（出现在 teamA 或 teamB 中）
+ */
+function buildPlayerCondition(filterPlayer) {
+  return _.or([
+    { teamA: _.elemMatch({ name: filterPlayer }) },
+    { teamB: _.elemMatch({ name: filterPlayer }) }
+  ])
+}
+
+/**
+ * 拉取指定时间范围内的全部比赛（可叠加玩家筛选），自动翻页突破单次1000条限制
+ */
+async function getMatchesInRange(startDate, endDate, filterPlayer) {
+  const MAX_LIMIT = 1000
+  let allData = []
+  let skip = 0
+
+  while (true) {
+    let query = db.collection('matches').where({
+      createTime: _.gte(startDate).and(_.lte(endDate))
+    })
+
+    if (filterPlayer) {
+      query = query.where(buildPlayerCondition(filterPlayer))
+    }
+
+    const res = await query
+      .orderBy('createTime', 'desc')
+      .skip(skip)
+      .limit(MAX_LIMIT)
+      .get()
+
+    allData = allData.concat(res.data)
+
+    if (res.data.length < MAX_LIMIT) break
+    skip += MAX_LIMIT
+  }
+
+  return allData
+}
+
+/**
  * 提取所有不重复的日期
  */
 function extractUniqueDates(matches) {
@@ -121,7 +163,7 @@ function formatDate(date) {
 
 // 云函数入口
 exports.main = async (event, context) => {
-  const { type, filterDate, filterPlayer, tab, page = 0, pageSize = 20 } = event
+  const { type, filterDate, filterPlayer, tab } = event
 
   try {
     switch (type) {
@@ -139,42 +181,66 @@ exports.main = async (event, context) => {
         }
       }
 
-      // 获取历史记录列表（支持分页）
-      case 'getHistoryMatches': {
-        let query = db.collection('matches')
+      // 按「天」分页获取历史记录（每页若干个完整自然日，保证当日结算准确）
+      case 'getHistoryDays': {
+        const TZ = '+08:00' // 与小程序客户端（中国时区）分组保持一致
+        const daysPerPage = event.daysPerPage || 3
+        const dayPage = event.dayPage || 0
 
-        // 日期筛选
+        // 情况一：指定了具体日期，等价于只看这一天，无需按天翻页
         if (filterDate) {
-          const startDate = new Date(filterDate.replace(/-/g, '/') + ' 00:00:00')
-          const endDate = new Date(filterDate.replace(/-/g, '/') + ' 23:59:59')
-          query = query.where({
-            createTime: _.gte(startDate).and(_.lte(endDate))
+          if (dayPage > 0) {
+            return { success: true, matches: [], days: [], hasMore: false }
+          }
+          const startDate = new Date(`${filterDate}T00:00:00.000${TZ}`)
+          const endDate = new Date(`${filterDate}T23:59:59.999${TZ}`)
+          const matches = await getMatchesInRange(startDate, endDate, filterPlayer)
+          return {
+            success: true,
+            matches,
+            days: matches.length ? [filterDate] : [],
+            hasMore: false
+          }
+        }
+
+        // 情况二：按天翻页。先用聚合算出本页对应的若干个自然日（只返回日期，开销小）
+        const $ = db.command.aggregate
+        const matchStage = filterPlayer ? buildPlayerCondition(filterPlayer) : {}
+
+        const dayRes = await db.collection('matches')
+          .aggregate()
+          .match(matchStage)
+          .project({
+            day: $.dateToString({ date: '$createTime', format: '%Y-%m-%d', timezone: TZ })
           })
+          .group({ _id: '$day' })
+          .sort({ _id: -1 })
+          .skip(dayPage * daysPerPage)
+          .limit(daysPerPage + 1) // 多取1天用于判断是否还有更多
+          .end()
+
+        const allDays = dayRes.list.map(d => d._id)
+
+        if (allDays.length === 0) {
+          return { success: true, matches: [], days: [], hasMore: false }
         }
 
-        // 玩家筛选
-        if (filterPlayer) {
-          const playerCondition = { name: filterPlayer }
-          query = query.where(
-            _.or([
-              { teamA: _.elemMatch(playerCondition) },
-              { teamB: _.elemMatch(playerCondition) }
-            ])
-          )
-        }
+        const hasMore = allDays.length > daysPerPage
+        const days = hasMore ? allDays.slice(0, daysPerPage) : allDays
 
-        // 分页查询
-        const res = await query
-          .orderBy('createTime', 'desc')
-          .skip(page * pageSize)
-          .limit(pageSize)
-          .get()
+        // 这些自然日在排序后是连续的，用 [最旧日 00:00, 最新日 23:59] 区间即可取全
+        const maxDay = days[0]                 // 最新
+        const minDay = days[days.length - 1]   // 最旧
+        const startDate = new Date(`${minDay}T00:00:00.000${TZ}`)
+        const endDate = new Date(`${maxDay}T23:59:59.999${TZ}`)
+
+        const matches = await getMatchesInRange(startDate, endDate, filterPlayer)
 
         return {
           success: true,
-          matches: res.data,
-          count: res.data.length,
-          hasMore: res.data.length >= pageSize
+          matches,
+          days,
+          hasMore
         }
       }
 

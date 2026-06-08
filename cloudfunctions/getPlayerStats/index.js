@@ -150,7 +150,9 @@ exports.main = async (event, context) => {
           // 新增数据
           lastMonthMatches: 0, lastMonthWins: 0, lastMonthWinRate: 0,
           winRateTrend: [], achievements: [], nextAchievements: [],
-          records: {}, calendarData: [], goldenPartner: null, singleDayMax: 0
+          records: {}, calendarData: [], goldenPartner: null, singleDayMax: 0,
+          // 本次新增
+          recentForm: [], formStatus: '', clutch: null, monthlyTrend: []
         }
       }
     }
@@ -163,11 +165,16 @@ exports.main = async (event, context) => {
     let monthMatches = 0, monthWins = 0
     let lastMonthMatches = 0, lastMonthWins = 0
 
+    // 关键局能力：焦灼局(分差<=2) vs 普通局(分差>=3)
+    let closeMatches = 0, closeWins = 0
+    let normalMatches = 0, normalWins = 0
+
     const partnerStats = {}
     const opponentStats = {}
     const activeDaysSet = new Set()
     const dailyMatchCount = {}  // 每日场次统计
     const calendarMap = {}      // 本月日历数据
+    const monthlyMap = {}       // 月度趋势数据 'YYYY-M' -> {matches, wins}
 
     // ========== 胜率趋势数据 ==========
     const winRateTrend = []
@@ -231,6 +238,21 @@ exports.main = async (event, context) => {
         losses++
         netScore -= scoreDiff
       }
+
+      // 关键局能力：按分差区分焦灼局 / 普通局
+      if (scoreDiff <= 2) {
+        closeMatches++
+        if (isWin) closeWins++
+      } else {
+        normalMatches++
+        if (isWin) normalWins++
+      }
+
+      // 月度趋势分桶
+      const monthKey = `${matchDate.getFullYear()}-${matchDate.getMonth() + 1}`
+      if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { matches: 0, wins: 0 }
+      monthlyMap[monthKey].matches++
+      if (isWin) monthlyMap[monthKey].wins++
 
       // 胜率趋势（每5场记录一个点，最多20个点）
       if ((index + 1) % 5 === 0 || index === sortedMatches.length - 1) {
@@ -361,6 +383,45 @@ exports.main = async (event, context) => {
     const achievements = calculateAchievements(achievementStats)
     const nextAchievements = getNextAchievements(achievementStats)
 
+    // 近期状态条：最近15场胜负（reverse 成最新在右）+ 状态标签
+    const formCount = Math.min(15, matches.length)
+    const recentForm = matches.slice(0, formCount).map(match => {
+      const inTeamA = match.teamA.some(p => p.name === playerName)
+      return (inTeamA && match.winner === 'A') || (!inTeamA && match.winner === 'B')
+    }).reverse()
+    const formStatus = recentWinRate >= winRate + 10 ? '火热'
+      : recentWinRate <= winRate - 10 ? '低迷' : '平稳'
+
+    // 关键局能力
+    const clutch = {
+      closeMatches,
+      closeWins,
+      closeWinRate: closeMatches > 0 ? Math.round((closeWins / closeMatches) * 100) : 0,
+      normalMatches,
+      normalWins,
+      normalWinRate: normalMatches > 0 ? Math.round((normalWins / normalMatches) * 100) : 0
+    }
+
+    // 月度趋势：近6个月（含无比赛的空月）
+    const monthlyTrend = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1)
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`
+      const m = monthlyMap[key] || { matches: 0, wins: 0 }
+      monthlyTrend.push({
+        label: `${d.getMonth() + 1}月`,
+        matches: m.matches,
+        wins: m.wins,
+        winRate: m.matches > 0 ? Math.round((m.wins / m.matches) * 100) : 0
+      })
+    }
+    const monthlyMax = monthlyTrend.reduce((max, m) => Math.max(max, m.matches), 0)
+    // 预计算柱高百分比（归一化），避免 wxml 里做除法
+    monthlyTrend.forEach(m => {
+      m.barHeight = monthlyMax > 0 ? Math.round((m.matches / monthlyMax) * 100) : 0
+      m.winHeight = m.matches > 0 ? Math.round((m.wins / m.matches) * 100) : 0
+    })
+
     return {
       success: true,
       data: {
@@ -378,7 +439,12 @@ exports.main = async (event, context) => {
         records,
         calendarData,
         goldenPartner,
-        singleDayMax
+        singleDayMax,
+        // 本次新增：近期状态条 / 关键局能力 / 月度趋势
+        recentForm,
+        formStatus,
+        clutch,
+        monthlyTrend
       }
     }
   } catch (err) {

@@ -30,37 +30,41 @@ exports.main = async (event, context) => {
     const winners = winnerTeam === 'A' ? teamA_Ids : teamB_Ids;
     const losers = winnerTeam === 'A' ? teamB_Ids : teamA_Ids;
 
+    // 精简入库：只保留 _id 和 name，避免把前端的展示字段
+    // (displayName/fullPinyin/firstLetters/统计/avatar 等) 持久化进 matches
+    const slim = arr => arr.map(p => ({ _id: p._id, name: p.name }));
+
     // 2. 写入比赛记录
     await db.collection('matches').add({
       data: {
         createTime: db.serverDate(),
-        teamA, 
-        teamB,
+        teamA: slim(teamA),
+        teamB: slim(teamB),
         scoreA,
         scoreB,
         winner: winnerTeam
       }
     });
 
-    // 3. 更新赢家
-    await db.collection('players').where({
-      _id: _.in(winners)
-    }).update({
-      data: {
-        total_matches: _.inc(1),
-        wins: _.inc(1)
-      }
-    });
-
-    // 4. 更新输家
-    await db.collection('players').where({
-      _id: _.in(losers)
-    }).update({
-      data: {
-        total_matches: _.inc(1),
-        losses: _.inc(1)
-      }
-    });
+    // 3. 并行更新赢家和输家（两者互不依赖）
+    await Promise.all([
+      db.collection('players').where({
+        _id: _.in(winners)
+      }).update({
+        data: {
+          total_matches: _.inc(1),
+          wins: _.inc(1)
+        }
+      }),
+      db.collection('players').where({
+        _id: _.in(losers)
+      }).update({
+        data: {
+          total_matches: _.inc(1),
+          losses: _.inc(1)
+        }
+      })
+    ]);
 
     return { success: true, msg: 'OK' }
 

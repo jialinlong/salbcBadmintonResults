@@ -103,6 +103,64 @@
         </view>
       </view>
 
+      <!-- 月度战绩趋势 -->
+      <view class="section monthly-section" wx:if="{{monthlyTrend.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon trend-icon"></view>
+          <text class="section-title">月度趋势</text>
+          <text class="section-sub">近6个月</text>
+        </view>
+        <view class="monthly-chart">
+          <view class="month-col" wx:for="{{monthlyTrend}}" wx:key="label">
+            <text class="month-count">{{item.matches > 0 ? item.matches : ''}}</text>
+            <view class="month-bar">
+              <view class="month-bar-fill" style="height: {{item.barHeight}}%">
+                <view class="month-bar-win" style="height: {{item.winHeight}}%"></view>
+              </view>
+            </view>
+            <text class="month-label">{{item.label}}</text>
+            <text class="month-rate {{item.matches > 0 ? '' : 'empty'}}">{{item.matches > 0 ? item.winRate + '%' : '-'}}</text>
+          </view>
+        </view>
+        <view class="monthly-legend">
+          <view class="legend-item"><view class="legend-dot mono"></view><text>场次</text></view>
+          <view class="legend-item"><view class="legend-dot win"></view><text>胜场占比</text></view>
+        </view>
+      </view>
+
+      <!-- 近期状态条 -->
+      <view class="section form-section" wx:if="{{recentForm.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon form-icon"></view>
+          <text class="section-title">近期状态</text>
+          <text class="form-status {{formStatus === '火热' ? 'hot' : (formStatus === '低迷' ? 'cold' : '')}}">{{formStatus}}</text>
+        </view>
+        <view class="form-guide">
+          <view class="form-cell {{item ? 'win' : 'lose'}}" wx:for="{{recentForm}}" wx:key="index">
+            {{item ? 'W' : 'L'}}
+          </view>
+        </view>
+        <view class="form-meta">近 {{recentForm.length}} 场 · 胜率 {{recentWinRate}}%（总胜率 {{winRate}}%）</view>
+      </view>
+
+      <!-- 胜率趋势 -->
+      <view class="section trend-section" wx:if="{{winRateTrend.length > 1}}">
+        <view class="section-header">
+          <view class="section-icon chart-icon"></view>
+          <text class="section-title">胜率趋势</text>
+          <text class="section-sub">每5场结算</text>
+        </view>
+        <view class="trend-chart">
+          <view class="trend-bar" wx:for="{{winRateTrend}}" wx:key="match">
+            <text class="trend-val">{{item.rate}}</text>
+            <view class="trend-bar-track">
+              <view class="trend-bar-fill" style="height: {{item.rate}}%"></view>
+            </view>
+            <text class="trend-x">{{item.match}}</text>
+          </view>
+        </view>
+      </view>
+
       <!-- 成就徽章 -->
       <view class="section achievements-section" wx:if="{{achievements.length > 0}}">
         <view class="section-header">
@@ -153,6 +211,46 @@
             <view class="record-val">{{activeDays}}</view>
             <view class="record-label">活跃天数</view>
           </view>
+        </view>
+      </view>
+
+      <!-- 关键局能力 -->
+      <view class="section clutch-section" wx:if="{{clutch && (clutch.closeMatches > 0 || clutch.normalMatches > 0)}}">
+        <view class="section-header">
+          <view class="section-icon clutch-icon"></view>
+          <text class="section-title">关键局能力</text>
+          <text class="clutch-tag" wx:if="{{clutch.closeMatches > 0 && clutch.normalMatches > 0}}">
+            {{clutch.closeWinRate >= clutch.normalWinRate ? '关键分硬' : '顺风局更稳'}}
+          </text>
+        </view>
+        <view class="clutch-row">
+          <view class="clutch-label">
+            <text class="clutch-name">焦灼局</text>
+            <text class="clutch-desc">分差≤2</text>
+          </view>
+          <view class="partner-rate-bar clutch-bar">
+            <view class="partner-rate-fill close" style="width: {{clutch.closeWinRate}}%"></view>
+          </view>
+          <view class="clutch-stat">
+            <text class="clutch-rate">{{clutch.closeWinRate}}%</text>
+            <text class="clutch-sub">{{clutch.closeWins}}胜/{{clutch.closeMatches}}场</text>
+          </view>
+        </view>
+        <view class="clutch-row">
+          <view class="clutch-label">
+            <text class="clutch-name">普通局</text>
+            <text class="clutch-desc">分差≥3</text>
+          </view>
+          <view class="partner-rate-bar clutch-bar">
+            <view class="partner-rate-fill normal" style="width: {{clutch.normalWinRate}}%"></view>
+          </view>
+          <view class="clutch-stat">
+            <text class="clutch-rate">{{clutch.normalWinRate}}%</text>
+            <text class="clutch-sub">{{clutch.normalWins}}胜/{{clutch.normalMatches}}场</text>
+          </view>
+        </view>
+        <view class="clutch-extra" wx:if="{{records.maxLoseStreak > 0}}">
+          历史最长连败 {{records.maxLoseStreak}} 场
         </view>
       </view>
 

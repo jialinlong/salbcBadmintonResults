@@ -4,6 +4,8 @@
 const { formatDate, formatTime, showLoading, hideLoading, showError, calculateMatchPoints } = require('../../utils/common')
 const { getCache, setCache, clearCache } = require('../../utils/cache')
 
+const DAYS_PER_PAGE = 3  // 每页加载的自然日数量（整天加载，保证当日结算准确）
+
 Page({
   data: {
     groupedList: [],
@@ -19,8 +21,12 @@ Page({
     currentPlayer: '',
     playerPickerIndex: -1,
 
-    // 加载状态
-    isLoading: false
+    // 分页状态（按「天」分页）
+    dayPage: 0,        // 下一次要加载的天页码
+    hasMore: true,     // 是否还有更多数据
+    isEnd: false,      // 是否已加载完全部
+    isFirstLoad: true, // 是否首屏加载（用于骨架屏）
+    isLoading: false   // 是否正在加载
   },
 
   onLoad() {
@@ -34,16 +40,16 @@ Page({
       app.globalData.needRefreshHistory = false
       this.loadFilterOptions(true)  // 强制刷新筛选选项
       this.resetData()
-      this.loadAllHistory()
+      this.loadHistory()
     } else if (this.data.groupedList.length === 0) {
-      this.loadAllHistory()
+      this.loadHistory()
     }
   },
 
   onPullDownRefresh() {
     this.loadFilterOptions(true)  // 强制刷新，跳过缓存
     this.resetData()
-    this.loadAllHistory().finally(() => wx.stopPullDownRefresh())
+    this.loadHistory().finally(() => wx.stopPullDownRefresh())
   },
 
   // 使用云函数一次性获取筛选选项 + 缓存
@@ -98,7 +104,7 @@ Page({
     })
 
     this.resetData()
-    this.loadAllHistory()
+    this.loadHistory()
   },
 
   // 人名选择
@@ -112,7 +118,7 @@ Page({
     })
 
     this.resetData()
-    this.loadAllHistory()
+    this.loadHistory()
   },
 
   // 清除所有筛选
@@ -124,7 +130,7 @@ Page({
       playerPickerIndex: -1
     })
     this.resetData()
-    this.loadAllHistory()
+    this.loadHistory()
   },
 
   // 单独清除日期筛选
@@ -134,7 +140,7 @@ Page({
       pickerIndex: -1
     })
     this.resetData()
-    this.loadAllHistory()
+    this.loadHistory()
   },
 
   // 单独清除人名筛选
@@ -144,20 +150,25 @@ Page({
       playerPickerIndex: -1
     })
     this.resetData()
-    this.loadAllHistory()
+    this.loadHistory()
   },
 
+  // 重置分页与列表状态（切换筛选 / 刷新前调用）
   resetData() {
     this.setData({
       groupedList: [],
-      rawMatches: []
+      rawMatches: [],
+      dayPage: 0,
+      hasMore: true,
+      isEnd: false,
+      isFirstLoad: true
     })
   },
 
   // 删除比赛记录
   onDeleteMatch(e) {
     const matchId = e.currentTarget.dataset.id
-    
+
     wx.showModal({
       title: '确认删除',
       content: '确定要删除这条比赛记录吗？删除后将重新计算当日积分。',
@@ -180,13 +191,13 @@ Page({
       })
 
       hideLoading()
-      
+
       if (res.result && res.result.success) {
         wx.showToast({ title: '已删除并回滚', icon: 'success' })
         clearCache('filterOptions')  // 清除缓存
         this.loadFilterOptions(true)  // 强制刷新筛选选项
         this.resetData()
-        this.loadAllHistory()
+        this.loadHistory()
       } else {
         console.error('删除逻辑报错', res)
         showError('操作失败，请重试')
@@ -198,47 +209,65 @@ Page({
     }
   },
 
-  // 一次性加载所有历史记录
-  async loadAllHistory() {
-    if (this.data.isLoading) return
+  // 滚动到底部，加载下一页
+  onReachBottom() {
+    if (this.data.isLoading || !this.data.hasMore) return
+    this.loadHistory()
+  },
+
+  // 按「天」分页加载历史记录（每页若干个完整自然日，追加到已有数据）
+  async loadHistory() {
+    if (this.data.isLoading || !this.data.hasMore) return
+
+    const isFirstLoad = this.data.isFirstLoad
+    const currentDayPage = this.data.dayPage
 
     this.setData({ isLoading: true })
-    showLoading('加载中...')
+
+    // 仅首屏使用 loading 提示，加载更多时由底部 footer 提示
+    if (isFirstLoad) showLoading('加载中...')
 
     try {
       const res = await wx.cloud.callFunction({
         name: 'getMatchStats',
         data: {
-          type: 'getHistoryMatches',
+          type: 'getHistoryDays',
           filterDate: this.data.currentDate,
           filterPlayer: this.data.currentPlayer,
-          page: 0,
-          pageSize: 1000  // 一次性加载最多1000条
+          dayPage: currentDayPage,
+          daysPerPage: DAYS_PER_PAGE
         }
       })
 
-      hideLoading()
+      if (isFirstLoad) hideLoading()
 
       if (res.result.success) {
-        const matches = res.result.matches
-        const groups = this.processGroups(matches)
+        const newMatches = res.result.matches || []
+        // 追加到累积数据，保持 createTime 倒序（整天加载，不会跨页拆分某一天）
+        const rawMatches = this.data.rawMatches.concat(newMatches)
+        const groups = this.processGroups(rawMatches)
+        const hasMore = res.result.hasMore
 
         this.setData({
-          rawMatches: matches,
+          rawMatches,
           groupedList: groups,
+          dayPage: currentDayPage + 1,
+          hasMore,
+          isEnd: !hasMore,
+          isFirstLoad: false,
           isLoading: false
         })
 
-        console.log(`加载完成, 共 ${matches.length} 条记录`)
+        console.log(`第 ${currentDayPage + 1} 天页加载完成, 本页 ${(res.result.days || []).length} 天 / ${newMatches.length} 条, 累计 ${rawMatches.length} 条`)
       } else {
         showError('加载失败')
-        this.setData({ isLoading: false })
+        this.setData({ isLoading: false, isFirstLoad: false })
       }
     } catch (err) {
       console.error('加载历史失败', err)
-      hideLoading()
+      if (isFirstLoad) hideLoading()
       showError('加载失败')
-      this.setData({ isLoading: false })
+      this.setData({ isLoading: false, isFirstLoad: false })
     }
   },
 

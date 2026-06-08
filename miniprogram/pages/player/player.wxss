@@ -1269,3 +1269,238 @@ page {
 .legend-dot.hot {
   background: linear-gradient(135deg, #667eea, #764ba2);
 }
+
+/* ========== 新增模块通用 ========== */
+.section-sub {
+  margin-left: auto;
+  font-size: 24rpx;
+  color: #999;
+}
+
+.trend-icon { background: linear-gradient(180deg, #4facfe, #00f2fe); }
+.form-icon { background: linear-gradient(180deg, #43e97b, #38f9d7); }
+.chart-icon { background: linear-gradient(180deg, #fa709a, #fee140); }
+.clutch-icon { background: linear-gradient(180deg, #f093fb, #f5576c); }
+
+/* ========== 近期状态条 ========== */
+.form-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.form-cell {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.form-cell.win { background: linear-gradient(135deg, #26de81, #20bf6b); }
+.form-cell.lose { background: linear-gradient(135deg, #ff6b6b, #f5576c); }
+
+.form-status {
+  margin-left: auto;
+  font-size: 24rpx;
+  font-weight: bold;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  background: #f0f2f5;
+  color: #999;
+}
+
+.form-status.hot { background: #fff1f0; color: #f5576c; }
+.form-status.cold { background: #eef4ff; color: #5a8dee; }
+
+.form-meta {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* ========== 胜率趋势柱状 ========== */
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
+.trend-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.trend-val {
+  font-size: 18rpx;
+  color: #667eea;
+  margin-bottom: 6rpx;
+}
+
+.trend-bar-track {
+  width: 100%;
+  height: 160rpx;
+  background: #f0f2f5;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.trend-bar-fill {
+  width: 100%;
+  min-height: 4rpx;
+  background: linear-gradient(180deg, #667eea, #764ba2);
+  border-radius: 8rpx 8rpx 0 0;
+}
+
+.trend-x {
+  font-size: 18rpx;
+  color: #bbb;
+  margin-top: 6rpx;
+}
+
+/* ========== 月度趋势堆叠柱 ========== */
+.monthly-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.month-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.month-count {
+  font-size: 20rpx;
+  color: #999;
+  height: 26rpx;
+  line-height: 26rpx;
+}
+
+.month-bar {
+  width: 100%;
+  height: 150rpx;
+  background: #f0f2f5;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.month-bar-fill {
+  width: 100%;
+  min-height: 4rpx;
+  background: #c3cfe6;
+  border-radius: 8rpx 8rpx 0 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.month-bar-win {
+  width: 100%;
+  background: linear-gradient(180deg, #26de81, #20bf6b);
+}
+
+.month-label {
+  font-size: 22rpx;
+  color: #666;
+  margin-top: 8rpx;
+}
+
+.month-rate {
+  font-size: 20rpx;
+  color: #667eea;
+}
+
+.month-rate.empty { color: #ccc; }
+
+.monthly-legend {
+  display: flex;
+  justify-content: center;
+  gap: 32rpx;
+}
+
+.legend-dot.mono { background: #c3cfe6; }
+.legend-dot.win { background: linear-gradient(135deg, #26de81, #20bf6b); }
+
+/* ========== 关键局能力 ========== */
+.clutch-tag {
+  margin-left: auto;
+  font-size: 22rpx;
+  color: #f5576c;
+  background: #fff1f0;
+  padding: 4rpx 14rpx;
+  border-radius: 16rpx;
+}
+
+.clutch-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.clutch-label {
+  width: 130rpx;
+}
+
+.clutch-name {
+  display: block;
+  font-size: 26rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.clutch-desc {
+  display: block;
+  font-size: 20rpx;
+  color: #bbb;
+}
+
+/* 覆写 partner-rate-bar 的固定宽度，让对比条自适应 */
+.clutch-bar {
+  width: auto;
+  flex: 1;
+  height: 16rpx;
+  margin: 0 20rpx;
+}
+
+.partner-rate-fill.close { background: linear-gradient(90deg, #f093fb, #f5576c); }
+.partner-rate-fill.normal { background: linear-gradient(90deg, #667eea, #764ba2); }
+
+.clutch-stat {
+  width: 150rpx;
+  text-align: right;
+}
+
+.clutch-rate {
+  display: block;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.clutch-sub {
+  display: block;
+  font-size: 20rpx;
+  color: #999;
+}
+
+.clutch-extra {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
