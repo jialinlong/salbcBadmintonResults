@@ -1,0 +1,246 @@
+/* pages/rank/rank.wxss */
+page {
+  background-color: #f6f7f9;
+}
+
+.container {
+  padding: 0 20rpx;
+}
+
+/* --- 1. 顶部 Tab 样式 (风格A：精致居中) --- */
+.tab-header {
+  display: flex;
+  width: 65%; /* 👈 核心修改：只占用屏幕 65% 的宽度 */
+  margin: 30rpx auto; /* auto 让它水平居中 */
+  background: #fff;
+  border-radius: 50rpx; /* 改成完全圆角 */
+  padding: 8rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05); /* 增加一点悬浮感 */
+}
+
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  font-size: 28rpx;
+  color: #666;
+  border-radius: 40rpx; /* 内部按钮也随之变圆 */
+  font-weight: bold;
+  transition: all 0.3s; /* 增加点击动画 */
+}
+
+.tab-item.active {
+  background: #3b7cff;
+  color: #fff;
+  box-shadow: 0 4rpx 8rpx rgba(59, 124, 255, 0.3);
+}
+
+/* --- 2. 荣誉卡片样式 --- */
+/* --- 2. 荣誉卡片样式 (宽屏优化版) --- */
+.highlight-area {
+  display: flex;
+  justify-content: space-between; /* 必须：两端对齐，撑满一行 */
+  margin-bottom: 24rpx;
+  width: 100%; /* 确保容器占满父元素宽度 */
+}
+
+.highlight-card {
+  /* 核心修改：宽度给到 32%，三个加起来 96%，留 4% 间隙，刚好撑满 */
+  width: 32%; 
+  padding: 16rpx 0; /* 上下给点呼吸，左右设为 0，最大化利用宽度 */
+  border-radius: 16rpx;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 6rpx 12rpx rgba(0,0,0,0.1); /* 阴影加深一点，更有立体感 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center; /* 确保内容水平居中 */
+}
+
+/* 卡片背景色保持不变 */
+.blue-card { background: linear-gradient(135deg, #5b86e5, #36d1dc); } /*稍微调亮一点蓝*/
+.gold-card { background: linear-gradient(135deg, #ff9a9e, #fecfef); color: #d63031; }
+.purple-card { background: linear-gradient(135deg, #43e97b, #38f9d7); color: #006266; }
+
+/* 🌟 核心优化：标题字号调小，防止 Emoji 挤换行 */
+.card-title { 
+  font-size: 22rpx; 
+  margin-bottom: 6rpx; 
+  opacity: 0.95; 
+  white-space: nowrap; /* 强制不换行 */
+  display: flex;       /* 如果 Emoji 在 WXML 里是文字，这样可以居中 */
+  justify-content: center;
+  width: 100%;
+}
+
+/* 名字字号微调 */
+.card-name { 
+  font-size: 28rpx; /* 稍微大一点点 */
+  font-weight: bold; 
+  margin-bottom: 2rpx; 
+  width: 90%;       /* 限制宽度防止顶到边 */
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+}
+
+/* 数据值字号 */
+.card-val { 
+  font-size: 36rpx; /* 数据要大，突出重点 */
+  font-weight: 900; 
+  line-height: 1.2;
+}
+
+
+/* --- 3. 列表对齐核心配置 --- */
+/* 即使没有表头，这些宽度也是必须的，用来保证每一行的数据对齐 */
+.col-rank { width: 15%; text-align: center; }
+.col-name { width: 38%; padding-left: 16rpx; box-sizing: border-box; } 
+.col-data { width: 22%; text-align: center; }
+.col-rate { width: 25%; text-align: right; padding-right: 20rpx; box-sizing: border-box; }
+
+/* --- 列表滚动区 --- */
+.rank-scroll {
+  /* 高度调整，去掉表头后可视区域会变大一点 */
+  height: calc(100vh - 380rpx); 
+  background: #fff;
+  border-radius: 16rpx; /* 四角都圆润，因为没有表头衔接了 */
+}
+
+/* --- 列表单行样式 --- */
+.rank-item {
+  display: flex;
+  align-items: center;
+  height: 100rpx;
+  padding: 0 20rpx;
+  border-bottom: 1rpx solid #f8f8f8;
+}
+
+/* 前三名高亮背景 */
+.top-three {
+  background-color: #fffdf5; 
+}
+
+/* 排名列 */
+.rank-num {
+  font-weight: bold;
+  font-size: 30rpx;
+  color: #666;
+}
+.emoji-medal {
+  font-size: 42rpx; 
+}
+
+/* 名字列 */
+.player-info {
+  display: flex;
+  align-items: center;
+  overflow: hidden; 
+}
+.p-name {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+.newbie-tag {
+  font-size: 18rpx;
+  background: #eee;
+  color: #999;
+  padding: 2rpx 6rpx;
+  border-radius: 4rpx;
+  margin-left: 8rpx;
+  flex-shrink: 0;
+}
+
+/* 胜负列 */
+.match-stats {
+  font-size: 28rpx;
+}
+.win-num { color: #ff6b6b; font-weight: bold; }
+.slash { color: #ddd; margin: 0 6rpx; }
+.lose-num { color: #555; }
+
+/* 胜率列 */
+.rate-text {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+.high-rate {
+  color: #ff9f43; 
+}
+
+/* 空状态 */
+.empty-tip {
+  text-align: center;
+  padding: 60rpx;
+  color: #ccc;
+  font-size: 28rpx;
+}
+
+/* ========== 骨架屏样式 ========== */
+@keyframes skeleton-loading {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+.skeleton-line {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 8rpx;
+}
+
+.skeleton-card {
+  background: #f5f5f5 !important;
+  box-shadow: none !important;
+}
+
+.skeleton-title {
+  width: 60%;
+  height: 24rpx;
+  margin: 0 auto 12rpx;
+}
+
+.skeleton-name {
+  width: 50%;
+  height: 28rpx;
+  margin: 0 auto 8rpx;
+}
+
+.skeleton-val {
+  width: 40%;
+  height: 36rpx;
+  margin: 0 auto;
+}
+
+.skeleton-list {
+  background: #fff;
+  border-radius: 16rpx;
+}
+
+.skeleton-circle {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  margin: 0 auto;
+}
+
+.skeleton-text-long {
+  width: 120rpx;
+  height: 28rpx;
+}
+
+.skeleton-text-short {
+  width: 60rpx;
+  height: 28rpx;
+  margin: 0 auto;
+}

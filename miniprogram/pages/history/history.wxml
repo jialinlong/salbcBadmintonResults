@@ -1,0 +1,157 @@
+<!-- pages/history/history.wxml -->
+<view class="container">
+  
+  <!-- 顶部工具栏 -->
+  <view class="toolbar">
+    <view class="toolbar-title">历史战绩</view>
+    
+    <view class="filter-area">
+      <!-- 日期选择器 -->
+      <view class="filter-item">
+        <picker 
+          mode="selector" 
+          range="{{pickerDates}}" 
+          bindchange="onDateChange"
+          value="{{pickerIndex}}"
+        >
+          <view class="date-btn {{currentDate ? 'active' : ''}}">
+            {{currentDate ? currentDate : '日期'}} ▾
+          </view>
+        </picker>
+        <view wx:if="{{currentDate}}" class="mini-clear" catchtap="clearDateFilter">✕</view>
+      </view>
+
+      <!-- 人名选择器 -->
+      <view class="filter-item">
+        <picker 
+          mode="selector" 
+          range="{{playerNames}}" 
+          bindchange="onPlayerChange"
+          value="{{playerPickerIndex}}"
+        >
+          <view class="date-btn {{currentPlayer ? 'active' : ''}}">
+            {{currentPlayer ? currentPlayer : '人名'}} ▾
+          </view>
+        </picker>
+        <view wx:if="{{currentPlayer}}" class="mini-clear" catchtap="clearPlayerFilter">✕</view>
+      </view>
+
+      <view wx:if="{{currentDate || currentPlayer}}" class="clear-btn" bindtap="showAll">
+        全部
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 骨架屏 ========== -->
+  <view wx:if="{{isLoading && isFirstLoad}}" class="history-scroll">
+    <view class="skeleton-section" wx:for="{{[1,2]}}" wx:key="*this">
+      <!-- 日期头骨架 -->
+      <view class="skeleton-date-header">
+        <view class="skeleton-line skeleton-date-title"></view>
+        <view class="skeleton-line skeleton-date-count"></view>
+      </view>
+      <!-- 汇总骨架 -->
+      <view class="skeleton-summary">
+        <view class="skeleton-line skeleton-tag" wx:for="{{[1,2,3,4]}}" wx:key="*this"></view>
+      </view>
+      <!-- 比赛卡片骨架 -->
+      <view class="skeleton-card" wx:for="{{[1,2,3]}}" wx:key="*this">
+        <view class="skeleton-card-top">
+          <view class="skeleton-line skeleton-time"></view>
+          <view class="skeleton-line skeleton-tag-btn"></view>
+        </view>
+        <view class="skeleton-card-body">
+          <view class="skeleton-team">
+            <view class="skeleton-line skeleton-team-name"></view>
+            <view class="skeleton-line skeleton-team-score"></view>
+          </view>
+          <view class="skeleton-line skeleton-vs"></view>
+          <view class="skeleton-team">
+            <view class="skeleton-line skeleton-team-name"></view>
+            <view class="skeleton-line skeleton-team-score"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 实际内容 ========== -->
+  <scroll-view wx:else scroll-y class="history-scroll" bindscrolltolower="onReachBottom">
+    
+    <block wx:for="{{groupedList}}" wx:for-item="group" wx:key="date">
+      
+      <view class="date-section">
+        <view class="date-header">
+          <text class="date-title">{{group.date}}</text>
+          <text class="match-count">{{group.matches.length}} 场</text>
+        </view>
+
+        <view class="daily-summary">
+          <view class="summary-label">当日结算：</view>
+          <view class="summary-tags">
+            <block wx:for="{{group.dailyStats}}" wx:for-item="player" wx:key="name">
+              <view class="player-tag {{player.score >= 0 ? 'win-tag' : 'lose-tag'}}">
+                <text class="p-name">{{player.name}}</text>
+                <text class="p-score">{{player.score >= 0 ? '+' : ''}}{{player.score}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+      </view>
+
+      <view class="match-list">
+        <block wx:for="{{group.matches}}" wx:key="_id">
+          <view class="match-card">
+            
+            <view class="card-top">
+              <view class="top-left">
+                <text class="time-text">{{item.time}}</text>
+                <view class="game-tag {{item.points==4 ? 'tag-dream' : (item.points==2 ? 'tag-crush' : 'tag-norm')}}">
+                  {{item.tag}} (分值{{item.points}})
+                </view>
+              </view>
+
+              <view class="delete-btn" catchtap="onDeleteMatch" data-id="{{item._id}}">
+                删除
+              </view>
+            </view>
+
+            <view class="match-body">
+              
+              <view class="team-box {{item.isAWin ? 'winner' : 'loser'}}">
+                <view class="t-name">{{item.teamA}}</view>
+                <view class="t-delta" wx:if="{{item.isAWin}}">+{{item.points}}</view>
+                <view class="t-delta lost" wx:else>-{{item.points}}</view>
+              </view>
+
+              <view class="vs-box">
+                <text class="score-num">{{item.scoreStr}}</text>
+              </view>
+
+              <view class="team-box {{!item.isAWin ? 'winner' : 'loser'}}">
+                <view class="t-name">{{item.teamB}}</view>
+                <view class="t-delta" wx:if="{{!item.isAWin}}">+{{item.points}}</view>
+                <view class="t-delta lost" wx:else>-{{item.points}}</view>
+              </view>
+
+            </view>
+
+          </view>
+        </block>
+      </view>
+
+    </block>
+
+    <!-- 底部状态提示 -->
+    <view class="footer" wx:if="{{groupedList.length === 0 && !isLoading}}">
+      {{currentDate || currentPlayer ? '无相关记录' : '暂无比赛数据'}}
+    </view>
+    <view class="footer" wx:elif="{{isLoading && !isFirstLoad}}">
+      加载中...
+    </view>
+    <view class="footer" wx:elif="{{isEnd && groupedList.length > 0}}">
+      - 到底了 -
+    </view>
+
+  </scroll-view>
+</view>

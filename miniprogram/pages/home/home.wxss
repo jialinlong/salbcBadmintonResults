@@ -1,0 +1,31 @@
+page { background-color: #f6f6f6; }
+
+.container { padding: 40px 20px; }
+
+.header { text-align: center; margin-bottom: 40px; }
+.title { font-size: 24px; font-weight: bold; color: #333; }
+.subtitle { font-size: 14px; color: #888; margin-top: 10px; }
+
+.menu-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.menu-item {
+  width: 48%;
+  background: white;
+  padding: 30px 0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* 点击效果 */
+.menu-item:active { background-color: #fafafa; transform: scale(0.98); }
+
+.icon { font-size: 40px; margin-bottom: 10px; }
+.text { font-size: 16px; color: #333; font-weight: 500; }

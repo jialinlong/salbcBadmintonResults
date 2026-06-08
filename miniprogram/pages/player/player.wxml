@@ -1,0 +1,361 @@
+<!-- pages/player/player.wxml -->
+<scroll-view scroll-y class="page-container" enhanced show-scrollbar="{{false}}">
+
+  <!-- 骨架屏 -->
+  <block wx:if="{{isLoading}}">
+    <view class="skeleton-header-bg">
+      <view class="skeleton-avatar-wrap">
+        <view class="skeleton-line skeleton-avatar"></view>
+      </view>
+      <view class="skeleton-line skeleton-name"></view>
+      <view class="skeleton-stats-row">
+        <view class="skeleton-stat-item" wx:for="{{[1,2,3]}}" wx:key="*this">
+          <view class="skeleton-line skeleton-stat-val"></view>
+          <view class="skeleton-line skeleton-stat-label"></view>
+        </view>
+      </view>
+    </view>
+    <view class="skeleton-content">
+      <view class="skeleton-section" wx:for="{{[1,2,3]}}" wx:key="*this">
+        <view class="skeleton-line skeleton-section-title"></view>
+        <view class="skeleton-line skeleton-section-item"></view>
+        <view class="skeleton-line skeleton-section-item"></view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 实际内容 -->
+  <block wx:else>
+    <!-- 顶部背景区域 -->
+    <view class="header-bg">
+      <!-- 装饰元素 -->
+      <view class="header-decor decor-1"></view>
+      <view class="header-decor decor-2"></view>
+      
+      <!-- 头像 -->
+      <view class="avatar-wrap" bindtap="onAvatarTap">
+        <image wx:if="{{avatar}}" class="avatar-img" src="{{avatar}}" mode="aspectFill"></image>
+        <view wx:else class="avatar">{{playerName[0] || '?'}}</view>
+        <view class="avatar-ring"></view>
+        <view class="avatar-edit-hint">点击更换</view>
+      </view>
+      
+      <!-- 名字 -->
+      <view class="player-name">{{playerName}}</view>
+      
+      <!-- 连胜/连败徽章 -->
+      <view class="streak-badge {{streakType}}" wx:if="{{currentStreak >= 3}}">
+        <text wx:if="{{streakType === 'win'}}">{{currentStreak}} 连胜中</text>
+        <text wx:else>{{currentStreak}} 连败中</text>
+      </view>
+
+      <!-- 核心数据 -->
+      <view class="header-stats">
+        <view class="header-stat-item">
+          <view class="header-stat-val">{{totalMatches}}</view>
+          <view class="header-stat-label">总场次</view>
+        </view>
+        <view class="header-stat-divider"></view>
+        <view class="header-stat-item highlight">
+          <view class="header-stat-val">{{winRate}}%</view>
+          <view class="header-stat-label">胜率</view>
+        </view>
+        <view class="header-stat-divider"></view>
+        <view class="header-stat-item">
+          <view class="header-stat-val">
+            <text class="win-text">{{wins}}</text>
+            <text class="slash">/</text>
+            <text class="lose-text">{{losses}}</text>
+          </view>
+          <view class="header-stat-label">胜/负</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 内容区域 -->
+    <view class="content-area">
+      
+      <!-- 本月战报卡片 -->
+      <view class="month-report" wx:if="{{totalMatches > 0}}">
+        <view class="month-report-header">
+          <text class="month-report-title">本月战报</text>
+          <text class="month-report-date">{{monthMatches}}场比赛</text>
+        </view>
+        <view class="month-report-body">
+          <view class="month-stat">
+            <view class="month-stat-val">{{monthWins}}</view>
+            <view class="month-stat-label">胜</view>
+          </view>
+          <view class="month-stat">
+            <view class="month-stat-val">{{monthMatches - monthWins}}</view>
+            <view class="month-stat-label">负</view>
+          </view>
+          <view class="month-stat highlight">
+            <view class="month-stat-val">{{monthWinRate}}%</view>
+            <view class="month-stat-label">胜率</view>
+          </view>
+          <view class="month-compare" wx:if="{{lastMonthMatches > 0}}">
+            <view class="compare-item {{monthWinRate >= lastMonthWinRate ? 'up' : 'down'}}">
+              <text class="compare-icon">{{monthWinRate >= lastMonthWinRate ? '↑' : '↓'}}</text>
+              <text class="compare-text">vs上月{{lastMonthWinRate}}%</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 成就徽章 -->
+      <view class="section achievements-section" wx:if="{{achievements.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon achievement-icon"></view>
+          <text class="section-title">成就徽章</text>
+          <text class="achievement-count">{{achievements.length}}个</text>
+        </view>
+        <view class="achievements-grid">
+          <view class="achievement-item" wx:for="{{achievements}}" wx:key="id">
+            <view class="achievement-icon-wrap">
+              <text class="achievement-emoji">{{item.icon}}</text>
+            </view>
+            <text class="achievement-name">{{item.name}}</text>
+          </view>
+        </view>
+        <!-- 下一个成就进度 -->
+        <view class="next-achievements" wx:if="{{nextAchievements.length > 0}}">
+          <view class="next-achievement" wx:for="{{nextAchievements}}" wx:key="name">
+            <text class="next-label">{{item.name}}</text>
+            <view class="next-progress">
+              <view class="next-progress-fill" style="width: {{item.current / item.target * 100}}%"></view>
+            </view>
+            <text class="next-text">{{item.current}}/{{item.target}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 个人记录墙 -->
+      <view class="section records-section" wx:if="{{totalMatches > 0}}">
+        <view class="section-header">
+          <view class="section-icon record-icon"></view>
+          <text class="section-title">个人记录</text>
+        </view>
+        <view class="records-grid">
+          <view class="record-item">
+            <view class="record-val">{{records.maxWinStreak || 0}}</view>
+            <view class="record-label">最长连胜</view>
+          </view>
+          <view class="record-item">
+            <view class="record-val">{{records.biggestWin || 0}}</view>
+            <view class="record-label">最大分差</view>
+          </view>
+          <view class="record-item">
+            <view class="record-val">{{records.singleDayMax || 0}}</view>
+            <view class="record-label">单日最多</view>
+          </view>
+          <view class="record-item">
+            <view class="record-val">{{activeDays}}</view>
+            <view class="record-label">活跃天数</view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 黄金搭档 -->
+      <view class="golden-partner-card" wx:if="{{goldenPartner}}">
+        <view class="golden-badge">黄金搭档</view>
+        <view class="golden-content">
+          <view class="golden-avatar">{{goldenPartner.name[0]}}</view>
+          <view class="golden-info">
+            <text class="golden-name">{{goldenPartner.name}}</text>
+            <text class="golden-stat">合作{{goldenPartner.matches}}场 · 胜率{{goldenPartner.winRate}}%</text>
+          </view>
+          <view class="golden-wins">
+            <text class="golden-wins-val">{{goldenPartner.wins}}</text>
+            <text class="golden-wins-label">胜</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 活跃日历 -->
+      <view class="section calendar-section" wx:if="{{calendarData.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon calendar-icon"></view>
+          <text class="section-title">本月活跃</text>
+        </view>
+        <!-- 星期表头 -->
+        <view class="calendar-weekdays">
+          <text class="weekday">日</text>
+          <text class="weekday">一</text>
+          <text class="weekday">二</text>
+          <text class="weekday">三</text>
+          <text class="weekday">四</text>
+          <text class="weekday">五</text>
+          <text class="weekday">六</text>
+        </view>
+        <!-- 日历空位补齐 + 日期 -->
+        <view class="calendar-grid">
+          <!-- 月初空位 -->
+          <view class="calendar-day empty" wx:for="{{firstDayOffset}}" wx:key="*this"></view>
+          <!-- 日期 -->
+          <view class="calendar-day {{item.matches > 0 ? 'active' : ''}} {{item.matches >= 3 ? 'hot' : ''}}" 
+            wx:for="{{calendarData}}" 
+            wx:key="day">
+            <text class="day-num">{{item.day}}</text>
+            <text class="day-matches" wx:if="{{item.matches > 0}}">{{item.matches}}</text>
+          </view>
+        </view>
+        <view class="calendar-legend">
+          <view class="legend-item"><view class="legend-dot"></view><text>无比赛</text></view>
+          <view class="legend-item"><view class="legend-dot active"></view><text>1-2场</text></view>
+          <view class="legend-item"><view class="legend-dot hot"></view><text>3场+</text></view>
+        </view>
+      </view>
+
+      <!-- 数据卡片 -->
+      <view class="data-cards">
+        <view class="data-card">
+          <view class="data-card-icon net-score-icon">
+            <text>+/-</text>
+          </view>
+          <view class="data-card-info">
+            <view class="data-card-val {{netScore >= 0 ? 'positive' : 'negative'}}">
+              {{netScore >= 0 ? '+' : ''}}{{netScore}}
+            </view>
+            <view class="data-card-label">净胜分</view>
+          </view>
+        </view>
+        <view class="data-card">
+          <view class="data-card-icon streak-icon">
+            <text>MAX</text>
+          </view>
+          <view class="data-card-info">
+            <view class="data-card-val">{{maxStreak}}</view>
+            <view class="data-card-label">最长连胜</view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 最佳搭档 -->
+      <view class="section" wx:if="{{bestPartners.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon partner-icon"></view>
+          <text class="section-title">最佳搭档</text>
+        </view>
+        <view class="partner-list">
+          <view class="partner-item" wx:for="{{bestPartners}}" wx:key="name" wx:if="{{index < 3}}">
+            <view class="partner-rank {{index === 0 ? 'first' : ''}}">{{index + 1}}</view>
+            <view class="partner-avatar">{{item.name[0]}}</view>
+            <view class="partner-info">
+              <text class="partner-name">{{item.name}}</text>
+              <text class="partner-stat">合作 {{item.matches}} 场</text>
+            </view>
+            <view class="partner-rate-wrap">
+              <view class="partner-rate-bar">
+                <view class="partner-rate-fill" style="width: {{item.winRate}}%"></view>
+              </view>
+              <text class="partner-rate {{item.winRate >= 60 ? 'high' : ''}}">{{item.winRate}}%</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 克星 & 苦手 -->
+      <view class="versus-section" wx:if="{{bestAgainst.length > 0 || worstAgainst.length > 0}}">
+        <!-- 克星 -->
+        <view class="versus-card" wx:if="{{bestAgainst.length > 0}}">
+          <view class="versus-header good">
+            <text class="versus-title">克星</text>
+            <text class="versus-subtitle">对战胜率高</text>
+          </view>
+          <view class="versus-list">
+            <view class="versus-item" wx:for="{{bestAgainst}}" wx:key="name">
+              <text class="versus-name">{{item.name}}</text>
+              <text class="versus-record">{{item.wins}}胜{{item.losses}}负</text>
+              <text class="versus-rate good">{{item.winRate}}%</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 苦手 -->
+        <view class="versus-card" wx:if="{{worstAgainst.length > 0}}">
+          <view class="versus-header bad">
+            <text class="versus-title">苦手</text>
+            <text class="versus-subtitle">对战胜率低</text>
+          </view>
+          <view class="versus-list">
+            <view class="versus-item" wx:for="{{worstAgainst}}" wx:key="name">
+              <text class="versus-name">{{item.name}}</text>
+              <text class="versus-record">{{item.wins}}胜{{item.losses}}负</text>
+              <text class="versus-rate bad">{{item.winRate}}%</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 最近比赛 -->
+      <view class="section" wx:if="{{recentMatches.length > 0}}">
+        <view class="section-header">
+          <view class="section-icon history-icon"></view>
+          <text class="section-title">最近战绩</text>
+        </view>
+        <view class="recent-list">
+          <view class="recent-item" wx:for="{{recentMatches}}" wx:key="index">
+            <view class="recent-result {{item.isWin ? 'win' : 'lose'}}">
+              {{item.isWin ? 'W' : 'L'}}
+            </view>
+            <view class="recent-info">
+              <view class="recent-teams">
+                <text class="my-team">{{item.myTeam}}</text>
+                <text class="vs-text">vs</text>
+                <text class="opponent-team">{{item.opponentTeam}}</text>
+              </view>
+              <text class="recent-score">{{item.score}}</text>
+            </view>
+            <text class="recent-date">{{item.date}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{totalMatches === 0}}">
+        <view class="empty-icon"></view>
+        <text class="empty-text">暂无比赛记录</text>
+        <text class="empty-hint">快去打一场吧</text>
+      </view>
+
+      <!-- 分享按钮 -->
+      <view class="share-btn-wrap" wx:if="{{totalMatches > 0}}">
+        <button class="share-btn" bindtap="generateShareCard">
+          <text>生成战绩卡片</text>
+        </button>
+      </view>
+
+      <!-- 底部安全区 -->
+      <view class="safe-bottom"></view>
+    </view>
+  </block>
+
+</scroll-view>
+
+<!-- 隐藏的 Canvas -->
+<canvas type="2d" id="shareCanvas" class="share-canvas"></canvas>
+
+<!-- 分享图片弹窗 -->
+<view class="share-modal" wx:if="{{showShareModal}}" catchtap="closeShareModal">
+  <view class="share-modal-content" catchtap="">
+    <view class="share-modal-header">
+      <text>战绩卡片预览</text>
+      <view class="share-modal-close" bindtap="closeShareModal">
+        <text>✕</text>
+      </view>
+    </view>
+    <view class="share-image-wrap">
+      <image class="share-image" src="{{shareImagePath}}" mode="widthFix"></image>
+    </view>
+    <view class="share-modal-tip">长按图片可直接保存</view>
+    <view class="share-modal-buttons">
+      <button class="share-modal-btn" open-type="share">
+        <text>分享好友</text>
+      </button>
+      <button class="share-modal-btn primary" bindtap="saveToAlbum">
+        <text>保存相册</text>
+      </button>
+    </view>
+  </view>
+</view>

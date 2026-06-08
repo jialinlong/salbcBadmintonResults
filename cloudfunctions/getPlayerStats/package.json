@@ -1,0 +1,9 @@
+{
+  "name": "getPlayerStats",
+  "version": "1.0.0",
+  "description": "获取个人详细统计数据",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

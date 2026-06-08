@@ -1,0 +1,36 @@
+<!-- pages/index/index.wxml -->
+<view class="container">
+  <view class="title">🏸 录入新球员</view>
+  
+  <view class="input-box">
+    <input 
+      class="weui-input" 
+      placeholder="请输入球员名字（如：林丹）" 
+      bindinput="onNameInput" 
+      value="{{playerName}}"
+    />
+  </view>
+
+  <button type="primary" bindtap="addPlayer">添加球员</button>
+</view>
+<!-- 🔐 密码验证弹窗 -->
+<view class="password-modal" wx:if="{{showPasswordModal}}">
+  <view class="password-container" catchtap="stopPropagation">
+    <view class="password-title">🔐 请输入密码</view>
+    <view class="password-hint">录入球员需要验证身份</view>
+    <input 
+      class="password-input" 
+      type="number" 
+      password="{{true}}"
+      placeholder="请输入6位数字密码" 
+      maxlength="6"
+      value="{{inputPassword}}"
+      bindinput="onPasswordInput"
+    />
+    <view class="password-buttons">
+      <button class="password-btn cancel" bindtap="closePasswordModal">取消</button>
+      <button class="password-btn confirm" bindtap="verifyPassword">确定</button>
+    </view>
+  </view>
+</view>
+

@@ -1,0 +1,98 @@
+<!-- pages/rank/rank.wxml -->
+<view class="container">
+  
+  <!-- 1. 顶部 Tab 切换 -->
+  <view class="tab-header">
+    <view class="tab-item {{currentTab=='month'?'active':''}}" bindtap="switchTab" data-type="month">
+      月榜
+    </view>
+    <view class="tab-item {{currentTab=='total'?'active':''}}" bindtap="switchTab" data-type="total">
+      历史总榜
+    </view>
+  </view>
+
+  <!-- ========== 骨架屏 ========== -->
+  <block wx:if="{{isLoading}}">
+    <!-- 荣誉卡片骨架 -->
+    <view class="highlight-area skeleton-area">
+      <view class="highlight-card skeleton-card">
+        <view class="skeleton-line skeleton-title"></view>
+        <view class="skeleton-line skeleton-name"></view>
+        <view class="skeleton-line skeleton-val"></view>
+      </view>
+      <view class="highlight-card skeleton-card">
+        <view class="skeleton-line skeleton-title"></view>
+        <view class="skeleton-line skeleton-name"></view>
+        <view class="skeleton-line skeleton-val"></view>
+      </view>
+      <view class="highlight-card skeleton-card">
+        <view class="skeleton-line skeleton-title"></view>
+        <view class="skeleton-line skeleton-name"></view>
+        <view class="skeleton-line skeleton-val"></view>
+      </view>
+    </view>
+
+    <!-- 列表骨架 -->
+    <view class="rank-scroll skeleton-list">
+      <view class="rank-item" wx:for="{{[1,2,3,4,5,6]}}" wx:key="*this">
+        <view class="col-rank"><view class="skeleton-circle"></view></view>
+        <view class="col-name"><view class="skeleton-line skeleton-text-long"></view></view>
+        <view class="col-data"><view class="skeleton-line skeleton-text-short"></view></view>
+        <view class="col-rate"><view class="skeleton-line skeleton-text-short"></view></view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ========== 实际内容 ========== -->
+  <block wx:else>
+    <!-- 2. 荣誉高光时刻 -->
+    <view class="highlight-area" wx:if="{{rankList.length > 0}}">
+      <view class="highlight-card blue-card" bindtap="goToPlayer" data-name="{{mostActive.name}}">
+        <view class="card-title">勤奋卷王</view>
+        <view class="card-name">{{mostActive.name || '暂无'}}</view>
+        <view class="card-val">{{mostActive.matches || 0}} 场</view>
+      </view>
+      <view class="highlight-card gold-card" bindtap="goToPlayer" data-name="{{bestPlayer.name}}">
+        <view class="card-title">绝对大腿</view>
+        <view class="card-name">{{bestPlayer.name || '暂无'}}</view>
+        <view class="card-val">{{bestPlayer.winRate || 0}}%</view>
+      </view>
+      <view class="highlight-card purple-card" bindtap="goToPlayer" data-name="{{topScorer.name}}">
+        <view class="card-title">净胜分王</view>
+        <view class="card-name">{{topScorer.name || '暂无'}}</view>
+        <view class="card-val">{{topScorer.netScore > 0 ? '+' : ''}}{{topScorer.netScore || 0}}</view>
+      </view>
+    </view>
+
+    <!-- 3. 排行榜列表区 -->
+    <scroll-view scroll-y class="rank-scroll">
+      <block wx:for="{{rankList}}" wx:key="name">
+        <view class="rank-item {{index < 3 ? 'top-three' : ''}}" bindtap="goToPlayer" data-name="{{item.name}}">
+          <view class="col-rank rank-num">
+            <text wx:if="{{index==0}}" class="emoji-medal">🥇</text>
+            <text wx:elif="{{index==1}}" class="emoji-medal">🥈</text>
+            <text wx:elif="{{index==2}}" class="emoji-medal">🥉</text>
+            <text wx:else>{{index + 1}}</text>
+          </view>
+          <view class="col-name player-info">
+            <text class="p-name">{{item.name}}</text>
+            <text class="newbie-tag" wx:if="{{item.matches < 5}}">新</text>
+          </view>
+          <view class="col-data match-stats">
+            <text class="win-num">{{item.wins}}</text>
+            <text class="slash">/</text>
+            <text class="lose-num">{{item.losses}}</text>
+          </view>
+          <view class="col-rate win-rate-box">
+            <text class="rate-text {{item.winRate >= 60 ? 'high-rate' : ''}}">{{item.winRate}}%</text>
+          </view>
+        </view>
+      </block>
+      
+      <view class="empty-tip" wx:if="{{rankList.length === 0}}">
+        <text>暂无数据，快去记一局吧！</text>
+      </view>
+    </scroll-view>
+  </block>
+
+</view>

@@ -1,0 +1,27 @@
+<view class="container">
+  <view class="header">
+    <view class="title">🏸 羽毛球记分助手</view>
+  </view>
+
+  <view class="menu-grid">
+    <view class="menu-item" bindtap="goToMatch">
+      <view class="icon">⚔️</view>
+      <view class="text">记录比赛</view>
+    </view>
+
+    <view class="menu-item" bindtap="goToAddPlayer">
+      <view class="icon">👥</view>
+      <view class="text">录入球员</view>
+    </view>
+
+    <view class="menu-item" bindtap="goToRank">
+      <view class="icon">🏆</view>
+      <view class="text">排行榜</view>
+    </view>
+
+    <view class="menu-item" bindtap="goToHistory">
+      <view class="icon">📅</view>
+      <view class="text">历史记录</view>
+    </view>
+  </view>
+</view>

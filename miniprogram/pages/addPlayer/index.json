@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "录入新球员",
+  "usingComponents": {
+    "cloud-tip-modal": "/components/cloudTipModal/index"
+  }
+}

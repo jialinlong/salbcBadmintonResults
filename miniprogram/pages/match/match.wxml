@@ -1,0 +1,145 @@
+<view class="container">
+  <!-- 快捷比分按钮 -->
+  <view class="quick-scores">
+    <text class="quick-scores-label">快捷比分：</text>
+    <view class="quick-score-btns">
+      <view class="quick-score-btn" bindtap="setQuickScore" data-a="21" data-b="19">21:19</view>
+      <view class="quick-score-btn" bindtap="setQuickScore" data-a="21" data-b="18">21:18</view>
+      <view class="quick-score-btn" bindtap="setQuickScore" data-a="21" data-b="17">21:17</view>
+      <view class="quick-score-btn" bindtap="setQuickScore" data-a="21" data-b="15">21:15</view>
+      <view class="quick-score-btn" bindtap="setQuickScore" data-a="21" data-b="12">21:12</view>
+    </view>
+  </view>
+
+  <!-- A队选手 -->
+  <view class="team-section team-a">
+    <!-- A队队员1 -->
+    <view class="player-selector">
+      <view class="selected-player" bindtap="openPlayerPicker" data-index="0">
+        {{selectedPlayers[0] ? selectedPlayers[0].displayName : '点击选择队员A1'}}
+      </view>
+    </view>
+
+    <!-- A队队员2 -->
+    <view class="player-selector">
+      <view class="selected-player" bindtap="openPlayerPicker" data-index="1">
+        {{selectedPlayers[1] ? selectedPlayers[1].displayName : '点击选择队员A2'}}
+      </view>
+      <!-- 搭档推荐 -->
+      <view class="partner-recommend" wx:if="{{selectedPlayers[0] && !selectedPlayers[1] && recommendedPartners.length > 0}}">
+        <text class="recommend-label">推荐搭档：</text>
+        <view class="recommend-tags">
+          <view class="recommend-tag" wx:for="{{recommendedPartners}}" wx:key="name" 
+            bindtap="selectRecommendedPartner" data-name="{{item.name}}">
+            {{item.name}}({{item.count}})
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- A队比分 -->
+    <view class="score-input">
+      <input type="number" value="{{scoreA}}" bindinput="onScoreAInput" placeholder="A队比分" />
+    </view>
+  </view>
+
+  <!-- VS 分隔符 -->
+  <view class="vs-section">
+    <view class="vs">VS</view>
+  </view>
+
+  <!-- B队选手 -->
+  <view class="team-section team-b">
+    <!-- B队队员1 -->
+    <view class="player-selector">
+      <view class="selected-player" bindtap="openPlayerPicker" data-index="2">
+        {{selectedPlayers[2] ? selectedPlayers[2].displayName : '点击选择队员B1'}}
+      </view>
+    </view>
+
+    <!-- B队队员2 -->
+    <view class="player-selector">
+      <view class="selected-player" bindtap="openPlayerPicker" data-index="3">
+        {{selectedPlayers[3] ? selectedPlayers[3].displayName : '点击选择队员B2'}}
+      </view>
+      <!-- 搭档推荐 -->
+      <view class="partner-recommend" wx:if="{{selectedPlayers[2] && !selectedPlayers[3] && recommendedPartners.length > 0}}">
+        <text class="recommend-label">推荐搭档：</text>
+        <view class="recommend-tags">
+          <view class="recommend-tag" wx:for="{{recommendedPartners}}" wx:key="name" 
+            bindtap="selectRecommendedPartner" data-name="{{item.name}}">
+            {{item.name}}({{item.count}})
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- B队比分 -->
+    <view class="score-input">
+      <input type="number" value="{{scoreB}}" bindinput="onScoreBInput" placeholder="B队比分" />
+    </view>
+  </view>
+
+  <!-- 提交按钮 -->
+  <button class="submit-btn" bindtap="submitMatch">记录比赛</button>
+
+  <!-- 🌟 球员选择弹窗 - 精简版 -->
+  <view class="player-modal" wx:if="{{showPlayerModal}}" catchtap="closePlayerPicker">
+    <view class="modal-content" catchtap="stopPropagation">
+      <!-- 弹窗头部 -->
+      <view class="modal-header">
+        <text class="modal-title">选择队员</text>
+        <text class="modal-close" bindtap="closePlayerPicker">✕</text>
+      </view>
+
+      <!-- 🌟 搜索框（可折叠） -->
+      <view class="search-box">
+        <input 
+          class="search-input" 
+          placeholder="搜索球员（姓名/拼音/首字母）" 
+          value="{{searchKeyword}}"
+          bindinput="onSearchInput"
+        />
+      </view>
+
+      <!-- 🌟 球员列表 - 点击直接选中 -->
+      <scroll-view scroll-y class="player-list">
+        <view 
+          wx:for="{{filteredPlayers}}" 
+          wx:key="_id"
+          class="player-item {{currentSelectedId === item._id ? 'current-selected' : ''}}"
+          data-player="{{item}}"
+          bindtap="selectPlayerDirectly"
+        >
+          <text class="player-name">{{item.displayName}}</text>
+          <!-- 🌟 显示当前已选标记 -->
+          <text wx:if="{{currentSelectedId === item._id}}" class="current-tag">当前</text>
+        </view>
+        
+        <view wx:if="{{filteredPlayers.length === 0}}" class="empty-tip">
+          暂无匹配的球员
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>
+<!-- 🔐 密码验证弹窗 -->
+<view class="password-modal" wx:if="{{showPasswordModal}}">
+  <view class="password-container" catchtap="stopPropagation">
+    <view class="password-title">🔐 请输入密码</view>
+    <input 
+      class="password-input" 
+      type="number" 
+      password="{{true}}"
+      placeholder="请输入6位数字密码" 
+      maxlength="6"
+      value="{{inputPassword}}"
+      bindinput="onPasswordInput"
+    />
+    <view class="password-buttons">
+      <button class="password-btn cancel" bindtap="closePasswordModal">取消</button>
+      <button class="password-btn confirm" bindtap="verifyPassword">确定</button>
+    </view>
+  </view>
+</view>
+
