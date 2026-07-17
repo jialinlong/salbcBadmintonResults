@@ -3,6 +3,8 @@
 
 const { formatDate, formatTime, showLoading, hideLoading, showError, calculateMatchPoints } = require('../../utils/common')
 const { getCache, setCache, clearCache } = require('../../utils/cache')
+const { createTraceId, perfLog } = require('../../utils/perf')
+const { createSingleFlight } = require('../../utils/singleFlight')
 
 const DAYS_PER_PAGE = 3  // 每页加载的自然日数量（整天加载，保证当日结算准确）
 
@@ -29,35 +31,64 @@ Page({
     isLoading: false   // 是否正在加载
   },
 
+  hasInitialized: false,
+  filterOptionsFlight: null,
+
+  getFilterOptionsFlight() {
+    if (!this.filterOptionsFlight) {
+      this.filterOptionsFlight = createSingleFlight(() => {
+        perfLog('history', createTraceId('history'), 'client:refresh:deduplicated')
+      })
+    }
+    return this.filterOptionsFlight
+  },
+
   onLoad() {
-    this.loadFilterOptions()
+    const traceId = createTraceId('history')
+    perfLog('history', traceId, 'client:onLoad')
   },
 
   onShow() {
+    const traceId = createTraceId('history')
+    perfLog('history', traceId, 'client:onShow')
     const app = getApp()
-    // 检查是否需要刷新
-    if (app.globalData.needRefreshHistory) {
+    const needsRefresh = app.globalData.needRefreshHistory
+    const firstShow = !this.hasInitialized
+    this.hasInitialized = true
+
+    if (needsRefresh) {
       app.globalData.needRefreshHistory = false
-      this.loadFilterOptions(true)  // 强制刷新筛选选项
       this.resetData()
-      this.loadHistory()
-    } else if (this.data.groupedList.length === 0) {
+    }
+
+    if (firstShow || needsRefresh) {
+      this.loadFilterOptions(needsRefresh)
+    }
+
+    if (needsRefresh || this.data.groupedList.length === 0) {
       this.loadHistory()
     }
   },
 
   onPullDownRefresh() {
-    this.loadFilterOptions(true)  // 强制刷新，跳过缓存
     this.resetData()
-    this.loadHistory().finally(() => wx.stopPullDownRefresh())
+    Promise.all([
+      this.loadFilterOptions(true),
+      this.loadHistory()
+    ]).finally(() => wx.stopPullDownRefresh())
   },
 
   // 使用云函数一次性获取筛选选项 + 缓存
   async loadFilterOptions(forceRefresh = false) {
+    const traceId = createTraceId('history')
     // 强制刷新时跳过缓存
     if (!forceRefresh) {
       const cachedOptions = getCache('filterOptions')
       if (cachedOptions) {
+        perfLog('history', traceId, 'client:filterOptions:cache-hit', {
+          dateCount: (cachedOptions.dates || []).length,
+          playerCount: (cachedOptions.players || []).length
+        })
         console.log('✅ 从缓存加载筛选选项')
         this.setData({
           pickerDates: cachedOptions.dates,
@@ -67,30 +98,44 @@ Page({
       }
     }
 
-    try {
-      const res = await wx.cloud.callFunction({
-        name: 'getMatchStats',
-        data: { type: 'getFilterOptions' }
-      })
-
-      if (res.result.success) {
-        const options = {
-          dates: res.result.dates,
-          players: res.result.players
-        }
-
-        // 保存到缓存
-        setCache('filterOptions', options)
-
-        this.setData({
-          pickerDates: options.dates,
-          playerNames: options.players
+    return this.getFilterOptionsFlight().run(async () => {
+      const requestStart = Date.now()
+      perfLog('history', traceId, 'client:cloud:getFilterOptions:start')
+      try {
+        const res = await wx.cloud.callFunction({
+          name: 'getMatchStats',
+          data: { type: 'getFilterOptions', traceId }
         })
-        console.log('筛选选项加载完成:', res.result.dates.length, '个日期,', res.result.players.length, '位玩家')
+
+        perfLog('history', traceId, 'client:cloud:getFilterOptions:end', {
+          durationMs: Date.now() - requestStart,
+          dateCount: res.result && res.result.dates ? res.result.dates.length : 0,
+          playerCount: res.result && res.result.players ? res.result.players.length : 0
+        })
+
+        if (res.result.success) {
+          const options = {
+            dates: res.result.dates,
+            players: res.result.players
+          }
+
+          // 保存到缓存
+          setCache('filterOptions', options)
+
+          this.setData({
+            pickerDates: options.dates,
+            playerNames: options.players
+          })
+          console.log('筛选选项加载完成:', res.result.dates.length, '个日期,', res.result.players.length, '位玩家')
+        }
+      } catch (err) {
+        perfLog('history', traceId, 'client:cloud:getFilterOptions:error', {
+          durationMs: Date.now() - requestStart,
+          errorName: err && err.name
+        })
+        console.error('加载筛选选项失败', err)
       }
-    } catch (err) {
-      console.error('加载筛选选项失败', err)
-    }
+    })
   },
 
   // 日期选择
@@ -219,6 +264,7 @@ Page({
   async loadHistory() {
     if (this.data.isLoading || !this.data.hasMore) return
 
+    const traceId = createTraceId('history')
     const isFirstLoad = this.data.isFirstLoad
     const currentDayPage = this.data.dayPage
 
@@ -227,6 +273,11 @@ Page({
     // 仅首屏使用 loading 提示，加载更多时由底部 footer 提示
     if (isFirstLoad) showLoading('加载中...')
 
+    const requestStart = Date.now()
+    perfLog('history', traceId, 'client:cloud:getHistoryDays:start', {
+      dayPage: currentDayPage,
+      daysPerPage: DAYS_PER_PAGE
+    })
     try {
       const res = await wx.cloud.callFunction({
         name: 'getMatchStats',
@@ -235,8 +286,15 @@ Page({
           filterDate: this.data.currentDate,
           filterPlayer: this.data.currentPlayer,
           dayPage: currentDayPage,
-          daysPerPage: DAYS_PER_PAGE
+          daysPerPage: DAYS_PER_PAGE,
+          traceId
         }
+      })
+
+      perfLog('history', traceId, 'client:cloud:getHistoryDays:end', {
+        durationMs: Date.now() - requestStart,
+        dayCount: res.result && res.result.days ? res.result.days.length : 0,
+        matchCount: res.result && res.result.matches ? res.result.matches.length : 0
       })
 
       if (isFirstLoad) hideLoading()
@@ -245,8 +303,15 @@ Page({
         const newMatches = res.result.matches || []
         // 追加到累积数据，保持 createTime 倒序（整天加载，不会跨页拆分某一天）
         const rawMatches = this.data.rawMatches.concat(newMatches)
+        const processStart = Date.now()
         const groups = this.processGroups(rawMatches)
+        perfLog('history', traceId, 'client:processGroups:end', {
+          durationMs: Date.now() - processStart,
+          matchCount: rawMatches.length,
+          groupCount: groups.length
+        })
         const hasMore = res.result.hasMore
+        const renderStart = Date.now()
 
         this.setData({
           rawMatches,
@@ -256,6 +321,12 @@ Page({
           isEnd: !hasMore,
           isFirstLoad: false,
           isLoading: false
+        }, () => {
+          perfLog('history', traceId, 'client:render:end', {
+            durationMs: Date.now() - renderStart,
+            matchCount: rawMatches.length,
+            groupCount: groups.length
+          })
         })
 
         console.log(`第 ${currentDayPage + 1} 天页加载完成, 本页 ${(res.result.days || []).length} 天 / ${newMatches.length} 条, 累计 ${rawMatches.length} 条`)
@@ -264,6 +335,10 @@ Page({
         this.setData({ isLoading: false, isFirstLoad: false })
       }
     } catch (err) {
+      perfLog('history', traceId, 'client:cloud:getHistoryDays:error', {
+        durationMs: Date.now() - requestStart,
+        errorName: err && err.name
+      })
       console.error('加载历史失败', err)
       if (isFirstLoad) hideLoading()
       showError('加载失败')

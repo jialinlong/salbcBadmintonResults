@@ -6,24 +6,48 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+let invocationCount = 0
+
+function fallbackTraceId(scope) {
+  return `${scope}-cloud-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function perfLog(scope, traceId, stage, fields = {}) {
+  const suffix = Object.entries(fields)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(' ')
+  console.log(`[PERF][${scope}][${traceId}] ${stage}${suffix ? ` ${suffix}` : ''}`)
+}
 
 /**
  * 获取所有比赛数据 (云函数无20条限制，最多1000条)
  */
-async function getAllMatches(condition = {}) {
+async function getAllMatches(condition = {}, perf = null, fields = null) {
   const MAX_LIMIT = 1000
   let allData = []
   let skip = 0
 
   while (true) {
-    const res = await db.collection('matches')
+    const batchStart = Date.now()
+    let query = db.collection('matches')
       .where(condition)
       .orderBy('createTime', 'desc')
+    if (fields) query = query.field(fields)
+    const res = await query
       .skip(skip)
       .limit(MAX_LIMIT)
       .get()
 
     allData = allData.concat(res.data)
+    if (perf) {
+      perfLog(perf.scope, perf.traceId, 'cloud:matches-batch:end', {
+        durationMs: Date.now() - batchStart,
+        batch: skip / MAX_LIMIT,
+        batchCount: res.data.length,
+        totalCount: allData.length
+      })
+    }
 
     if (res.data.length < MAX_LIMIT) {
       break
@@ -47,12 +71,13 @@ function buildPlayerCondition(filterPlayer) {
 /**
  * 拉取指定时间范围内的全部比赛（可叠加玩家筛选），自动翻页突破单次1000条限制
  */
-async function getMatchesInRange(startDate, endDate, filterPlayer) {
+async function getMatchesInRange(startDate, endDate, filterPlayer, perf = null) {
   const MAX_LIMIT = 1000
   let allData = []
   let skip = 0
 
   while (true) {
+    const batchStart = Date.now()
     let query = db.collection('matches').where({
       createTime: _.gte(startDate).and(_.lte(endDate))
     })
@@ -68,6 +93,14 @@ async function getMatchesInRange(startDate, endDate, filterPlayer) {
       .get()
 
     allData = allData.concat(res.data)
+    if (perf) {
+      perfLog(perf.scope, perf.traceId, 'cloud:matches-range-batch:end', {
+        durationMs: Date.now() - batchStart,
+        batch: skip / MAX_LIMIT,
+        batchCount: res.data.length,
+        totalCount: allData.length
+      })
+    }
 
     if (res.data.length < MAX_LIMIT) break
     skip += MAX_LIMIT
@@ -164,12 +197,22 @@ function formatDate(date) {
 // 云函数入口
 exports.main = async (event, context) => {
   const { type, filterDate, filterPlayer, tab } = event
+  const traceId = event.traceId || fallbackTraceId('history')
+  const invokeStart = Date.now()
+  const invocation = ++invocationCount
+  const perf = { scope: 'history', traceId }
+  let errorName
+  perfLog('history', traceId, 'cloud:invoke:start', { invocation, type })
 
   try {
     switch (type) {
       // 获取历史记录的筛选条件数据
       case 'getFilterOptions': {
-        const allMatches = await getAllMatches()
+        const allMatches = await getAllMatches({}, perf, {
+          createTime: true,
+          teamA: true,
+          teamB: true
+        })
         const dates = extractUniqueDates(allMatches)
         const players = extractUniquePlayers(allMatches)
 
@@ -194,7 +237,7 @@ exports.main = async (event, context) => {
           }
           const startDate = new Date(`${filterDate}T00:00:00.000${TZ}`)
           const endDate = new Date(`${filterDate}T23:59:59.999${TZ}`)
-          const matches = await getMatchesInRange(startDate, endDate, filterPlayer)
+          const matches = await getMatchesInRange(startDate, endDate, filterPlayer, perf)
           return {
             success: true,
             matches,
@@ -207,6 +250,7 @@ exports.main = async (event, context) => {
         const $ = db.command.aggregate
         const matchStage = filterPlayer ? buildPlayerCondition(filterPlayer) : {}
 
+        const aggregateStart = Date.now()
         const dayRes = await db.collection('matches')
           .aggregate()
           .match(matchStage)
@@ -218,6 +262,10 @@ exports.main = async (event, context) => {
           .skip(dayPage * daysPerPage)
           .limit(daysPerPage + 1) // 多取1天用于判断是否还有更多
           .end()
+        perfLog('history', traceId, 'cloud:days-aggregate:end', {
+          durationMs: Date.now() - aggregateStart,
+          dayCount: dayRes.list.length
+        })
 
         const allDays = dayRes.list.map(d => d._id)
 
@@ -234,7 +282,7 @@ exports.main = async (event, context) => {
         const startDate = new Date(`${minDay}T00:00:00.000${TZ}`)
         const endDate = new Date(`${maxDay}T23:59:59.999${TZ}`)
 
-        const matches = await getMatchesInRange(startDate, endDate, filterPlayer)
+        const matches = await getMatchesInRange(startDate, endDate, filterPlayer, perf)
 
         return {
           success: true,
@@ -291,10 +339,18 @@ exports.main = async (event, context) => {
         return { success: false, errMsg: '未知的操作类型' }
     }
   } catch (err) {
+    errorName = err && err.name
     console.error('getMatchStats 错误:', err)
     return {
       success: false,
       errMsg: err.message
     }
+  } finally {
+    perfLog('history', traceId, errorName ? 'cloud:invoke:error' : 'cloud:invoke:end', {
+      durationMs: Date.now() - invokeStart,
+      invocation,
+      type,
+      errorName
+    })
   }
 }

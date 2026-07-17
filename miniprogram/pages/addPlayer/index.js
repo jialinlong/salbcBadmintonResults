@@ -2,6 +2,7 @@
 // 优化版本：使用云函数验证密码，统一工具函数
 
 const { showLoading, hideLoading, showSuccess, showError } = require('../../utils/common')
+const { clearCache } = require('../../utils/cache')
 
 const db = wx.cloud.database()
 const playersCollection = db.collection('players')
@@ -150,6 +151,7 @@ Page({
         }
       })
 
+      clearCache('matchPlayers')
       hideLoading()
       showSuccess('添加成功')
       this.setData({ playerName: '' })

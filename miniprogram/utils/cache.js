@@ -4,6 +4,11 @@
  * 缓存配置
  */
 const CACHE_CONFIG = {
+  // 记录比赛页球员缓存 - 5分钟
+  matchPlayers: {
+    key: 'cache_match_players',
+    ttl: 5 * 60 * 1000
+  },
   // 排行榜缓存 - 5分钟
   rankings: {
     key: 'cache_rankings',

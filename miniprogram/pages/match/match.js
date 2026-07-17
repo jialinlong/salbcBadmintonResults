@@ -3,10 +3,13 @@
 
 const { toPinyin } = require('../../utils/pinyin')
 const { showLoading, hideLoading, showSuccess, showError } = require('../../utils/common')
+const { createTraceId, perfLog } = require('../../utils/perf')
+const { getCache, setCache } = require('../../utils/cache')
+const { normalizePlayers } = require('../../utils/playerData')
+const { createSingleFlight } = require('../../utils/singleFlight')
 
 Page({
   data: {
-    allPlayers: [],
     selectedPlayers: [null, null, null, null],
     scoreA: '',
     scoreB: '',
@@ -28,17 +31,35 @@ Page({
 
   activeNamesSet: new Set(),
   partnerHistory: {},  // 搭档历史记录
+  allPlayers: [],
+  playersFlight: null,
+
+  onLoad() {
+    this.playersFlight = createSingleFlight(() => {
+      perfLog('match', this.pageTraceId || createTraceId('match'), 'client:refresh:deduplicated')
+    })
+  },
+
+  getPlayersFlight() {
+    if (!this.playersFlight) this.onLoad()
+    return this.playersFlight
+  },
 
   onShow() {
+    const traceId = createTraceId('match')
+    this.pageTraceId = traceId
+    perfLog('match', traceId, 'client:onShow')
     console.log('🔄 页面显示')
-    this.checkPermission()
+    this.checkPermission(traceId)
   },
 
   // 检查权限
-  checkPermission() {
+  checkPermission(traceId = this.pageTraceId || createTraceId('match')) {
     const permission = wx.getStorageSync('match_permission')
+    const granted = permission === 'granted'
+    perfLog('match', traceId, 'client:permission:end', { granted })
     
-    if (permission === 'granted') {
+    if (granted) {
       this.setData({ hasPermission: true })
       this.fetchPlayers()
     } else {
@@ -105,76 +126,97 @@ Page({
   },
 
   onPullDownRefresh() {
-    this.fetchPlayers().finally(() => wx.stopPullDownRefresh())
+    this.fetchPlayers({ forceRefresh: true }).finally(() => wx.stopPullDownRefresh())
   },
 
-  async fetchPlayers() {
+  async fetchPlayers(options = {}) {
     if (!this.data.hasPermission) return
 
-    showLoading('加载中...')
+    const { forceRefresh = false, showSpinner = true } = options
+    const traceId = createTraceId('match')
+    const cached = forceRefresh ? null : getCache('matchPlayers')
+    const hasCachedData = Boolean(cached && cached.players && cached.todayMatches)
+    const hasExistingData = hasCachedData || this.allPlayers.length > 0
 
-    try {
-      const res = await wx.cloud.callFunction({
-        name: 'getAllPlayers'
+    if (hasCachedData) {
+      this.applyPlayersData(cached.players, cached.todayMatches, traceId, 'cache')
+      perfLog('match', traceId, 'client:cache-hit', {
+        ageMs: cached.cachedAt ? Date.now() - cached.cachedAt : undefined,
+        playerCount: cached.players.length,
+        todayMatchCount: cached.todayMatches.length
       })
-
-      hideLoading()
-      
-      if (!res.result.success) {
-        throw new Error(res.result.errMsg || '获取数据失败')
-      }
-
-      const players = res.result.players
-      const todayMatches = res.result.todayMatches
-
-      this.activeNamesSet.clear()
-      todayMatches.forEach(match => {
-        match.teamA.forEach(p => this.activeNamesSet.add(p.name))
-        match.teamB.forEach(p => this.activeNamesSet.add(p.name))
-      })
-
-      this.sortAndRender(players)
-    } catch (err) {
-      hideLoading()
-      console.error('❌ 加载球员失败', err)
-      showError('加载失败，请重试')
     }
+
+    const blocking = !hasExistingData && showSpinner
+    if (blocking) showLoading('加载中...')
+
+    const request = this.getPlayersFlight().run(async () => {
+      const requestStart = Date.now()
+      perfLog('match', traceId, 'client:cloud:getAllPlayers:start')
+
+      try {
+        const res = await wx.cloud.callFunction({
+          name: 'getAllPlayers',
+          data: { traceId }
+        })
+
+        if (!res.result.success) {
+          throw new Error(res.result.errMsg || '获取数据失败')
+        }
+
+        const players = res.result.players
+        const todayMatches = res.result.todayMatches
+        perfLog('match', traceId, 'client:cloud:getAllPlayers:end', {
+          durationMs: Date.now() - requestStart,
+          playerCount: players.length,
+          todayMatchCount: todayMatches.length
+        })
+
+        setCache('matchPlayers', { players, todayMatches, cachedAt: Date.now() })
+        this.applyPlayersData(players, todayMatches, traceId, 'cloud')
+      } catch (err) {
+        perfLog('match', traceId, 'client:cloud:getAllPlayers:error', {
+          durationMs: Date.now() - requestStart,
+          errorName: err && err.name
+        })
+        console.error('❌ 加载球员失败', err)
+        showError(hasExistingData ? '刷新失败，已保留现有数据' : '加载失败，请重试')
+      }
+    })
+    return request.finally(() => {
+      if (blocking) hideLoading()
+    })
   },
 
-  sortAndRender(players) {
-    if (!players || players.length === 0) {
-      this.setData({ 
-        allPlayers: [], 
-        filteredPlayers: [] 
+  applyPlayersData(players, todayMatches, traceId = createTraceId('match'), source = 'cloud') {
+    const normalizeStart = Date.now()
+    this.activeNamesSet.clear()
+    const recentMatches = todayMatches || []
+    recentMatches.forEach(match => {
+      const teamA = match.teamA || []
+      const teamB = match.teamB || []
+      teamA.forEach(player => this.activeNamesSet.add(player.name))
+      teamB.forEach(player => this.activeNamesSet.add(player.name))
+    })
+
+    this.allPlayers = normalizePlayers(players, this.activeNamesSet, toPinyin)
+    perfLog('match', traceId, 'client:normalizePlayers:end', {
+      durationMs: Date.now() - normalizeStart,
+      playerCount: this.allPlayers.length,
+      source
+    })
+
+    if (this.data.showPlayerModal) {
+      const setDataStart = Date.now()
+      const filteredPlayers = this.getAvailablePlayers(this.data.currentPickerIndex)
+      this.setData({ filteredPlayers }, () => {
+        perfLog('match', traceId, 'client:setData:end', {
+          durationMs: Date.now() - setDataStart,
+          playerCount: filteredPlayers.length,
+          source
+        })
       })
-      return
     }
-
-    // 今日活跃的玩家排在前面
-    players.sort((a, b) => {
-      const aActive = this.activeNamesSet.has(a.name)
-      const bActive = this.activeNamesSet.has(b.name)
-      if (aActive && !bActive) return -1
-      if (!aActive && bActive) return 1
-      return 0
-    })
-
-    const formattedPlayers = players.map(p => {
-      const isActive = this.activeNamesSet.has(p.name)
-      const { fullPinyin, firstLetters } = toPinyin(p.name)
-      
-      return {
-        ...p,
-        displayName: isActive ? `🔥 ${p.name}` : p.name,
-        fullPinyin,
-        firstLetters
-      }
-    })
-
-    this.setData({
-      allPlayers: formattedPlayers,
-      filteredPlayers: formattedPlayers
-    })
   },
 
   openPlayerPicker(e) {
@@ -192,13 +234,13 @@ Page({
   },
 
   getAvailablePlayers(currentIndex) {
-    const { allPlayers, selectedPlayers } = this.data
+    const { selectedPlayers } = this.data
     
     const selectedIds = selectedPlayers
       .map((p, idx) => idx === currentIndex ? null : (p ? p._id : null))
       .filter(id => id !== null)
 
-    return allPlayers.filter(player => !selectedIds.includes(player._id))
+    return this.allPlayers.filter(player => !selectedIds.includes(player._id))
   },
 
   onSearchInput(e) {
@@ -287,9 +329,9 @@ Page({
   // 快速选择推荐搭档
   selectRecommendedPartner(e) {
     const partnerName = e.currentTarget.dataset.name
-    const { allPlayers, selectedPlayers } = this.data
+    const { selectedPlayers } = this.data
     
-    const partner = allPlayers.find(p => p.name === partnerName)
+    const partner = this.allPlayers.find(p => p.name === partnerName)
     if (partner) {
       // 确定要填充的位置：A1选了填A2，B1选了填B2
       let targetIndex
@@ -356,7 +398,7 @@ Page({
         // 询问是否保留队员
         this.showKeepPlayersDialog()
 
-        setTimeout(() => this.fetchPlayers(), 500)
+        this.fetchPlayers({ forceRefresh: true, showSpinner: false })
       } else {
         showError('系统错误')
       }
